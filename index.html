@@ -14,12 +14,65 @@
       </header>
       <main class="app-main">
         <section class="card">
-          <h2>Phase 0 — Project Skeleton</h2>
-          <ul>
-            <li>Firebase initialized</li>
-            <li>App JS loaded</li>
-            <li>Styles applied</li>
-          </ul>
+          <h2>Phase 1 — Authentication</h2>
+          <p class="muted">Register or log in to continue.</p>
+
+          <div class="auth-toggle">
+            <button class="toggle-btn active" data-target="login">Login</button>
+            <button class="toggle-btn" data-target="register">Register</button>
+          </div>
+
+          <div class="auth-forms">
+            <form id="login-form" class="auth-form" autocomplete="on">
+              <label>
+                Email
+                <input type="email" name="email" required />
+              </label>
+              <label>
+                Password
+                <input type="password" name="password" required minlength="6" />
+              </label>
+              <button type="submit" class="primary">Login</button>
+            </form>
+
+            <form id="register-form" class="auth-form hidden" autocomplete="on">
+              <label>
+                Email
+                <input type="email" name="email" required />
+              </label>
+              <label>
+                Password (min 6)
+                <input type="password" name="password" required minlength="6" />
+              </label>
+              <button type="submit" class="primary">Register</button>
+            </form>
+          </div>
+
+          <div id="auth-error" class="error hidden" role="alert"></div>
+
+          <div id="user-panel" class="user-panel hidden">
+            <p><strong>Logged in as:</strong> <span id="user-email">—</span></p>
+            <p><strong>UID:</strong> <span id="user-uid">—</span></p>
+            <button id="logout-btn" class="ghost">Logout</button>
+          </div>
+
+          <div id="create-family-section" class="hidden">
+            <h3>Create Family</h3>
+            <form id="create-family-form" class="auth-form">
+              <label>
+                Family Name
+                <input type="text" name="familyName" required placeholder="e.g. The Smiths" />
+              </label>
+              <button type="submit" class="primary">Create Family</button>
+            </form>
+          </div>
+
+          <div id="family-panel" class="user-panel hidden">
+            <p><strong>Family:</strong> <span id="family-name">—</span></p>
+            <p><strong>Family ID:</strong> <span id="family-id">—</span></p>
+            <p><strong>Role:</strong> <span id="user-role">—</span></p>
+          </div>
+
           <div class="status" id="status">Loading…</div>
         </section>
       </main>
