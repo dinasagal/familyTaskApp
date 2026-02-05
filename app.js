@@ -1,19 +1,17 @@
-import { auth, db } from "./firebase.js";
 import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import {
-  doc,
-  setDoc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
-  addDoc,
-  collection,
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  register,
+  login,
+  logout,
+  createFamily,
+  addFamilyMember,
+  getCurrentUserProfile,
+  loadFamilyMembers,
+  setupAuthListener,
+} from "./auth.js";
+
+// ====================
+// DOM ELEMENTS
+// ====================
 
 const statusEl = document.getElementById("status");
 const loginForm = document.getElementById("login-form");
@@ -30,6 +28,14 @@ const familyPanel = document.getElementById("family-panel");
 const familyName = document.getElementById("family-name");
 const familyId = document.getElementById("family-id");
 const userRole = document.getElementById("user-role");
+const familySettingsSection = document.getElementById("family-settings-section");
+const addChildForm = document.getElementById("add-child-form");
+const familyMembersSection = document.getElementById("family-members-section");
+const familyMembersList = document.getElementById("family-members-list");
+
+// ====================
+// UI HELPERS
+// ====================
 
 const setStatus = (text) => {
   statusEl.textContent = text;
@@ -59,32 +65,40 @@ const setAuthView = (view) => {
   }
 };
 
-const setLoggedInUI = async (user) => {
-  userEmail.textContent = user.email;
-  userUid.textContent = user.uid;
+// ====================
+// RENDER UI
+// ====================
+
+const setLoggedInUI = async (userData) => {
+  const profile = getCurrentUserProfile();
+  
+  userEmail.textContent = profile.user.email;
+  userUid.textContent = profile.user.uid;
   userPanel.classList.remove("hidden");
   loginForm.classList.add("hidden");
   registerForm.classList.add("hidden");
   document.querySelector(".auth-toggle").classList.add("hidden");
 
-  // Fetch user doc to check family status
-  const userRef = doc(db, "users", user.uid);
-  const userSnap = await getDoc(userRef);
+  if (userData?.familyId) {
+    // User has a family
+    familyName.textContent = userData.familyName || "—";
+    familyId.textContent = userData.familyId;
+    userRole.textContent = userData.role || "—";
+    familyPanel.classList.remove("hidden");
+    createFamilySection.classList.add("hidden");
 
-  if (userSnap.exists()) {
-    const userData = userSnap.data();
-    if (userData.familyId) {
-      // User has a family
-      familyName.textContent = userData.familyName || "—";
-      familyId.textContent = userData.familyId;
-      userRole.textContent = userData.role || "—";
-      familyPanel.classList.remove("hidden");
-      createFamilySection.classList.add("hidden");
+    // If parent, show family settings
+    if (userData.role === "parent") {
+      familySettingsSection.classList.remove("hidden");
+      await renderFamilyMembers();
     } else {
-      // User has no family - show create family form
-      createFamilySection.classList.remove("hidden");
-      familyPanel.classList.add("hidden");
+      familySettingsSection.classList.add("hidden");
     }
+  } else {
+    // User has no family - show create family form
+    createFamilySection.classList.remove("hidden");
+    familyPanel.classList.add("hidden");
+    familySettingsSection.classList.add("hidden");
   }
 };
 
@@ -94,75 +108,140 @@ const setLoggedOutUI = () => {
   userPanel.classList.add("hidden");
   createFamilySection.classList.add("hidden");
   familyPanel.classList.add("hidden");
+  familySettingsSection.classList.add("hidden");
   document.querySelector(".auth-toggle").classList.remove("hidden");
   setAuthView("login");
 };
 
-const createUserDoc = async (user) => {
-  const userRef = doc(db, "users", user.uid);
-  await setDoc(userRef, {
-    email: user.email,
-    role: null,
-    familyId: null,
-    createdAt: serverTimestamp(),
-  });
+const renderFamilyMembers = async () => {
+  try {
+    const members = await loadFamilyMembers();
+    
+    if (members.length === 0) {
+      familyMembersSection.classList.add("hidden");
+      return;
+    }
+    
+    familyMembersList.innerHTML = "";
+    
+    members.forEach((member) => {
+      const listItem = document.createElement("li");
+      listItem.textContent = `${member.email} (${member.role || "—"})`;
+      familyMembersList.appendChild(listItem);
+    });
+    
+    familyMembersSection.classList.remove("hidden");
+  } catch (error) {
+    console.error("Error rendering family members:", error);
+  }
 };
 
-const createFamilyHandler = async (event) => {
+// ====================
+// EVENT HANDLERS
+// ====================
+
+const handleLoginSubmit = async (event) => {
+  event.preventDefault();
+  clearError();
+
+  const email = loginForm.email.value.trim();
+  const password = loginForm.password.value.trim();
+
+  try {
+    setStatus("Signing in…");
+    await login(email, password);
+  } catch (error) {
+    showError(error.message);
+    setStatus("Login failed.");
+  }
+};
+
+const handleRegisterSubmit = async (event) => {
+  event.preventDefault();
+  clearError();
+
+  const email = registerForm.email.value.trim();
+  const password = registerForm.password.value.trim();
+
+  try {
+    setStatus("Creating account…");
+    await register(email, password);
+    setStatus("Account created. Please log in.");
+    loginForm.reset();
+    registerForm.reset();
+    setAuthView("login");
+  } catch (error) {
+    showError(error.message);
+    setStatus("Registration failed.");
+  }
+};
+
+const handleCreateFamily = async (event) => {
   event.preventDefault();
   clearError();
 
   const fName = createFamilyForm.familyName.value.trim();
-  const currentUser = auth.currentUser;
-
-  if (!currentUser) {
-    showError("Not authenticated.");
-    return;
-  }
 
   try {
     setStatus("Creating family…");
-
-    // Create family doc
-    const familiesRef = collection(db, "families");
-    const familyDoc = await addDoc(familiesRef, {
-      name: fName,
-      createdAt: serverTimestamp(),
-      createdByUid: currentUser.uid,
-      memberUids: [currentUser.uid],
-    });
-
-    const newFamilyId = familyDoc.id;
-
-    // Update user doc
-    const userRef = doc(db, "users", currentUser.uid);
-    await updateDoc(userRef, {
-      familyId: newFamilyId,
-      familyName: fName,
-      role: "parent",
-    });
-
+    const newFamilyId = await createFamily(fName);
     setStatus("Family created.");
     createFamilyForm.reset();
 
     // Update UI
+    const profile = getCurrentUserProfile();
     familyName.textContent = fName;
     familyId.textContent = newFamilyId;
     userRole.textContent = "parent";
     createFamilySection.classList.add("hidden");
     familyPanel.classList.remove("hidden");
+    familySettingsSection.classList.remove("hidden");
   } catch (error) {
     showError(error.message);
     setStatus("Family creation failed.");
   }
 };
 
-const init = async () => {
-  if (!auth || !db) {
-    setStatus("Firebase not initialized.");
-    return;
-  }
+const handleAddChild = async (event) => {
+  event.preventDefault();
+  clearError();
 
+  const childEmail = addChildForm.childEmail.value.trim();
+  const childPassword = addChildForm.childPassword.value.trim();
+  const childName = addChildForm.childName.value.trim();
+  const parentPassword = addChildForm.parentPassword.value.trim();
+
+  try {
+    setStatus("Creating child account…");
+    await addFamilyMember(childEmail, childPassword, childName, parentPassword);
+    setStatus("Child account created successfully!");
+    addChildForm.reset();
+    await renderFamilyMembers();
+  } catch (error) {
+    showError(error.message);
+    setStatus("Child account creation failed.");
+  }
+};
+
+const handleLogout = async () => {
+  clearError();
+  try {
+    setStatus("Signing out…");
+    await logout();
+  } catch (error) {
+    showError(error.message);
+    setStatus("Logout failed.");
+  }
+};
+
+// ====================
+// INIT
+// ====================
+
+const init = () => {
+  setStatus("Loading…");
+
+  // Toggle auth views
   toggleButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
       clearError();
@@ -170,61 +249,18 @@ const init = async () => {
     });
   });
 
-  createFamilyForm.addEventListener("submit", createFamilyHandler);
+  // Form submissions
+  loginForm.addEventListener("submit", handleLoginSubmit);
+  registerForm.addEventListener("submit", handleRegisterSubmit);
+  createFamilyForm.addEventListener("submit", handleCreateFamily);
+  addChildForm.addEventListener("submit", handleAddChild);
+  logoutBtn.addEventListener("click", handleLogout);
 
-  loginForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearError();
-
-    const email = loginForm.email.value.trim();
-    const password = loginForm.password.value.trim();
-
-    try {
-      setStatus("Signing in…");
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      showError(error.message);
-      setStatus("Login failed.");
-    }
-  });
-
-  registerForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearError();
-
-    const email = registerForm.email.value.trim();
-    const password = registerForm.password.value.trim();
-
-    try {
-      setStatus("Creating account…");
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      await createUserDoc(credential.user);
-      setStatus("Account created.");
-    } catch (error) {
-      showError(error.message);
-      setStatus("Registration failed.");
-    }
-  });
-
-  logoutBtn.addEventListener("click", async () => {
-    clearError();
-    try {
-      setStatus("Signing out…");
-      await signOut(auth);
-    } catch (error) {
-      showError(error.message);
-      setStatus("Logout failed.");
-    }
-  });
-
-  onAuthStateChanged(auth, async (user) => {
+  // Auth state listener
+  setupAuthListener((user, userData) => {
     clearError();
     if (user) {
-      await setLoggedInUI(user);
+      setLoggedInUI(userData);
       setStatus("Signed in.");
     } else {
       setLoggedOutUI();
@@ -233,4 +269,4 @@ const init = async () => {
   });
 };
 
-init();
+init();init();

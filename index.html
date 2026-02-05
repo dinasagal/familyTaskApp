@@ -73,6 +73,34 @@
             <p><strong>Role:</strong> <span id="user-role">—</span></p>
           </div>
 
+          <div id="family-settings-section" class="hidden">
+            <h3>Family Settings (Parent Only)</h3>
+            <form id="add-child-form" class="auth-form">
+              <label>
+                Child Email
+                <input type="email" name="childEmail" required placeholder="child@example.com" />
+              </label>
+              <label>
+                Child Password (min 6)
+                <input type="password" name="childPassword" required minlength="6" />
+              </label>
+              <label>
+                Child Name (optional)
+                <input type="text" name="childName" placeholder="e.g. Sarah" />
+              </label>
+              <label>
+                Your Password (to confirm)
+                <input type="password" name="parentPassword" required minlength="6" />
+              </label>
+              <button type="submit" class="primary">Add Child User</button>
+            </form>
+
+            <div id="family-members-section" class="hidden">
+              <h4>Family Members</h4>
+              <ul id="family-members-list" class="family-list"></ul>
+            </div>
+          </div>
+
           <div class="status" id="status">Loading…</div>
         </section>
       </main>
