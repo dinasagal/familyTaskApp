@@ -72,6 +72,12 @@ const sidebarOverlay = document.getElementById("sidebar-overlay");
 const sidebarLogout = document.getElementById("sidebar-logout");
 const navSettings = document.getElementById("nav-settings");
 const navLinks = document.querySelectorAll(".nav-link");
+const installButtonWrapper = document.getElementById("install-button-wrapper");
+const installButton = document.getElementById("install-button");
+
+// PWA elements
+const offlineBanner = document.getElementById("offline-banner");
+const appDiv = document.getElementById("app");
 
 // Sections
 const authSection = document.getElementById("auth-section");
@@ -1287,11 +1293,94 @@ const handleLogout = async () => {
 };
 
 // ====================
+// PWA MODULE
+// ====================
+
+let deferredPrompt = null;
+
+const registerServiceWorker = async () => {
+  if (!navigator.serviceWorker) {
+    console.log("Service Worker not supported");
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register("/service-worker.js", {
+      scope: "/",
+    });
+    console.log("Service Worker registered:", registration);
+  } catch (error) {
+    console.error("Service Worker registration failed:", error);
+  }
+};
+
+const setupInstallPrompt = () => {
+  // Listen for beforeinstallprompt event
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installButtonWrapper.classList.remove("hidden");
+    console.log("Install prompt ready");
+  });
+
+  // Listen for app installed event
+  window.addEventListener("appinstalled", () => {
+    console.log("App installed");
+    installButtonWrapper.classList.add("hidden");
+    deferredPrompt = null;
+    setStatus("App installed successfully!");
+  });
+};
+
+const handleInstallClick = async () => {
+  if (!deferredPrompt) return;
+
+  try {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log("Install outcome:", outcome);
+    deferredPrompt = null;
+    installButtonWrapper.classList.add("hidden");
+  } catch (error) {
+    console.error("Install failed:", error);
+  }
+};
+
+const setupOfflineDetection = () => {
+  // Check initial online status
+  const updateOnlineStatus = () => {
+    if (navigator.onLine) {
+      offlineBanner.classList.add("hidden");
+      appDiv.classList.remove("offline");
+    } else {
+      offlineBanner.classList.remove("hidden");
+      appDiv.classList.add("offline");
+    }
+  };
+
+  // Initial check
+  updateOnlineStatus();
+
+  // Listen for online/offline events
+  window.addEventListener("online", updateOnlineStatus);
+  window.addEventListener("offline", updateOnlineStatus);
+};
+
+// ====================
 // INIT
 // ====================
 
 const init = () => {
   setStatus("Loading…");
+
+  // Register service worker
+  registerServiceWorker();
+
+  // Setup install prompt
+  setupInstallPrompt();
+
+  // Setup offline detection
+  setupOfflineDetection();
 
   // Toggle auth views
   toggleButtons.forEach((btn) => {
@@ -1304,6 +1393,9 @@ const init = () => {
   // Sidebar toggle (mobile)
   hamburgerBtn.addEventListener("click", toggleSidebar);
   sidebarOverlay.addEventListener("click", closeSidebar);
+
+  // Install button
+  installButton.addEventListener("click", handleInstallClick);
 
   // Sidebar navigation
   navLinks.forEach((link) => {
