@@ -8,73 +8,139 @@
   </head>
   <body>
     <div id="app">
-      <header class="app-header">
-        <h1>Family Manager</h1>
-        <p class="muted">PWA Skeleton • Firebase Ready</p>
-      </header>
-      <main class="app-main">
-        <section class="card">
-          <h2>Phase 1 — Authentication</h2>
-          <p class="muted">Register or log in to continue.</p>
+      <!-- Hamburger Button (Mobile Only) -->
+      <button id="hamburger-btn" class="hamburger-btn hidden" aria-label="Toggle navigation">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
 
-          <div class="auth-toggle">
-            <button class="toggle-btn active" data-target="login">Login</button>
-            <button class="toggle-btn" data-target="register">Register</button>
+      <!-- Sidebar Navigation -->
+      <nav id="sidebar" class="sidebar hidden">
+        <div class="sidebar-header">
+          <h2>Family Manager</h2>
+        </div>
+        <ul class="sidebar-nav">
+          <li><a href="#" data-section="tasks" class="nav-link active">📋 Tasks</a></li>
+          <li><a href="#" data-section="calendar" class="nav-link">📅 Calendar</a></li>
+          <li><a href="#" data-section="messages" class="nav-link">💬 Messages</a></li>
+          <li><a href="#" id="nav-settings" data-section="settings" class="nav-link">⚙️ Family Settings</a></li>
+          <li><a href="#" id="sidebar-logout" class="nav-link logout-link">🚪 Logout</a></li>
+        </ul>
+      </nav>
+
+      <!-- Main Content Area -->
+      <main id="main-content" class="main-content">
+        
+        <!-- Auth Section (Logged Out State) -->
+        <section id="auth-section" class="content-section">
+          <header class="app-header">
+            <h1>Family Manager</h1>
+            <p class="muted">PWA Skeleton • Firebase Ready</p>
+          </header>
+
+          <div class="card">
+            <h2>Phase 1 — Authentication</h2>
+            <p class="muted">Register or log in to continue.</p>
+
+            <div class="auth-toggle">
+              <button class="toggle-btn active" data-target="login">Login</button>
+              <button class="toggle-btn" data-target="register">Register</button>
+            </div>
+
+            <div class="auth-forms">
+              <form id="login-form" class="auth-form" autocomplete="on">
+                <label>
+                  Email
+                  <input type="email" name="email" required />
+                </label>
+                <label>
+                  Password
+                  <input type="password" name="password" required minlength="6" />
+                </label>
+                <button type="submit" class="primary">Login</button>
+              </form>
+
+              <form id="register-form" class="auth-form hidden" autocomplete="on">
+                <label>
+                  Email
+                  <input type="email" name="email" required />
+                </label>
+                <label>
+                  Password (min 6)
+                  <input type="password" name="password" required minlength="6" />
+                </label>
+                <button type="submit" class="primary">Register</button>
+              </form>
+            </div>
+
+            <div id="auth-error" class="error hidden" role="alert"></div>
+
+            <div id="user-panel" class="user-panel hidden">
+              <p><strong>Logged in as:</strong> <span id="user-email">—</span></p>
+              <p><strong>UID:</strong> <span id="user-uid">—</span></p>
+              <button id="logout-btn" class="ghost">Logout</button>
+            </div>
+
+            <div id="create-family-section" class="hidden">
+              <h3>Create Family</h3>
+              <form id="create-family-form" class="auth-form">
+                <label>
+                  Family Name
+                  <input type="text" name="familyName" required placeholder="e.g. The Smiths" />
+                </label>
+                <button type="submit" class="primary">Create Family</button>
+              </form>
+            </div>
+
+            <div id="family-panel" class="user-panel hidden">
+              <p><strong>Family:</strong> <span id="family-name">—</span></p>
+              <p><strong>Family ID:</strong> <span id="family-id">—</span></p>
+              <p><strong>Role:</strong> <span id="user-role">—</span></p>
+            </div>
+
+            <div class="status" id="status">Loading…</div>
           </div>
+        </section>
 
-          <div class="auth-forms">
-            <form id="login-form" class="auth-form" autocomplete="on">
-              <label>
-                Email
-                <input type="email" name="email" required />
-              </label>
-              <label>
-                Password
-                <input type="password" name="password" required minlength="6" />
-              </label>
-              <button type="submit" class="primary">Login</button>
-            </form>
-
-            <form id="register-form" class="auth-form hidden" autocomplete="on">
-              <label>
-                Email
-                <input type="email" name="email" required />
-              </label>
-              <label>
-                Password (min 6)
-                <input type="password" name="password" required minlength="6" />
-              </label>
-              <button type="submit" class="primary">Register</button>
-            </form>
+        <!-- Tasks Section -->
+        <section id="tasks-section" class="content-section hidden">
+          <div class="section-header">
+            <h1>📋 Tasks</h1>
           </div>
-
-          <div id="auth-error" class="error hidden" role="alert"></div>
-
-          <div id="user-panel" class="user-panel hidden">
-            <p><strong>Logged in as:</strong> <span id="user-email">—</span></p>
-            <p><strong>UID:</strong> <span id="user-uid">—</span></p>
-            <button id="logout-btn" class="ghost">Logout</button>
+          <div class="card">
+            <p class="muted">Task management coming soon...</p>
           </div>
+        </section>
 
-          <div id="create-family-section" class="hidden">
-            <h3>Create Family</h3>
-            <form id="create-family-form" class="auth-form">
-              <label>
-                Family Name
-                <input type="text" name="familyName" required placeholder="e.g. The Smiths" />
-              </label>
-              <button type="submit" class="primary">Create Family</button>
-            </form>
+        <!-- Calendar Section -->
+        <section id="calendar-section" class="content-section hidden">
+          <div class="section-header">
+            <h1>📅 Calendar</h1>
           </div>
-
-          <div id="family-panel" class="user-panel hidden">
-            <p><strong>Family:</strong> <span id="family-name">—</span></p>
-            <p><strong>Family ID:</strong> <span id="family-id">—</span></p>
-            <p><strong>Role:</strong> <span id="user-role">—</span></p>
+          <div class="card">
+            <p class="muted">Calendar feature coming soon...</p>
           </div>
+        </section>
 
-          <div id="family-settings-section" class="hidden">
-            <h3>Family Settings (Parent Only)</h3>
+        <!-- Messages Section -->
+        <section id="messages-section" class="content-section hidden">
+          <div class="section-header">
+            <h1>💬 Message Board</h1>
+          </div>
+          <div class="card">
+            <p class="muted">Message board coming soon...</p>
+          </div>
+        </section>
+
+        <!-- Family Settings Section (Parent Only) -->
+        <section id="family-settings-section" class="content-section hidden">
+          <div class="section-header">
+            <h1>⚙️ Family Settings</h1>
+            <p class="muted">Parent Only</p>
+          </div>
+          <div class="card">
+            <h3>Add Child User</h3>
             <form id="add-child-form" class="auth-form">
               <label>
                 Child Email
@@ -100,10 +166,12 @@
               <ul id="family-members-list" class="family-list"></ul>
             </div>
           </div>
-
-          <div class="status" id="status">Loading…</div>
         </section>
+
       </main>
+
+      <!-- Mobile Sidebar Overlay -->
+      <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
     </div>
 
     <script type="module" src="app.js"></script>

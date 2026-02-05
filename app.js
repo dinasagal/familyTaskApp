@@ -10,6 +10,14 @@ import {
 } from "./auth.js";
 
 // ====================
+// GLOBAL STATE (Exposed)
+// ====================
+
+export let currentUser = null;
+export let currentUserRole = null;
+export let currentFamilyId = null;
+
+// ====================
 // DOM ELEMENTS
 // ====================
 
@@ -32,6 +40,20 @@ const familySettingsSection = document.getElementById("family-settings-section")
 const addChildForm = document.getElementById("add-child-form");
 const familyMembersSection = document.getElementById("family-members-section");
 const familyMembersList = document.getElementById("family-members-list");
+
+// Sidebar elements
+const hamburgerBtn = document.getElementById("hamburger-btn");
+const sidebar = document.getElementById("sidebar");
+const sidebarOverlay = document.getElementById("sidebar-overlay");
+const sidebarLogout = document.getElementById("sidebar-logout");
+const navSettings = document.getElementById("nav-settings");
+const navLinks = document.querySelectorAll(".nav-link");
+
+// Sections
+const authSection = document.getElementById("auth-section");
+const tasksSection = document.getElementById("tasks-section");
+const calendarSection = document.getElementById("calendar-section");
+const messagesSection = document.getElementById("messages-section");
 
 // ====================
 // UI HELPERS
@@ -66,11 +88,78 @@ const setAuthView = (view) => {
 };
 
 // ====================
+// SIDEBAR & NAVIGATION
+// ====================
+
+const toggleSidebar = () => {
+  sidebar.classList.toggle("visible");
+  sidebarOverlay.classList.toggle("visible");
+};
+
+const closeSidebar = () => {
+  sidebar.classList.remove("visible");
+  sidebarOverlay.classList.remove("visible");
+};
+
+const showSection = (sectionName) => {
+  if (sectionName === "settings" && currentUserRole !== "parent") {
+    return;
+  }
+
+  // Hide all sections
+  authSection.classList.add("hidden");
+  tasksSection.classList.add("hidden");
+  calendarSection.classList.add("hidden");
+  messagesSection.classList.add("hidden");
+  familySettingsSection.classList.add("hidden");
+
+  // Show selected section
+  switch (sectionName) {
+    case "tasks":
+      tasksSection.classList.remove("hidden");
+      break;
+    case "calendar":
+      calendarSection.classList.remove("hidden");
+      break;
+    case "messages":
+      messagesSection.classList.remove("hidden");
+      break;
+    case "settings":
+      familySettingsSection.classList.remove("hidden");
+      if (currentUserRole === "parent") {
+        renderFamilyMembers();
+      }
+      break;
+    default:
+      authSection.classList.remove("hidden");
+  }
+
+  // Update active nav link
+  navLinks.forEach((link) => {
+    if (link.dataset.section === sectionName) {
+      link.classList.add("active");
+    } else {
+      link.classList.remove("active");
+    }
+  });
+
+  // Close sidebar on mobile after navigation
+  if (window.innerWidth <= 768) {
+    closeSidebar();
+  }
+};
+
+// ====================
 // RENDER UI
 // ====================
 
 const setLoggedInUI = async (userData) => {
   const profile = getCurrentUserProfile();
+  
+  // Update global state
+  currentUser = profile.user;
+  currentUserRole = userData?.role || null;
+  currentFamilyId = userData?.familyId || null;
   
   userEmail.textContent = profile.user.email;
   userUid.textContent = profile.user.uid;
@@ -87,30 +176,55 @@ const setLoggedInUI = async (userData) => {
     familyPanel.classList.remove("hidden");
     createFamilySection.classList.add("hidden");
 
-    // If parent, show family settings
+    // Show sidebar and main app
+    sidebar.classList.remove("hidden");
+    hamburgerBtn.classList.remove("hidden");
+    authSection.classList.add("hidden");
+    
+    // Show default section (Tasks)
+    showSection("tasks");
+
+    // If parent, enable family settings access via sidebar
     if (userData.role === "parent") {
-      familySettingsSection.classList.remove("hidden");
+      navSettings.classList.remove("hidden");
       await renderFamilyMembers();
     } else {
-      familySettingsSection.classList.add("hidden");
+      navSettings.classList.add("hidden");
     }
   } else {
-    // User has no family - show create family form
+    // User has no family - show create family form in auth section
     createFamilySection.classList.remove("hidden");
     familyPanel.classList.add("hidden");
-    familySettingsSection.classList.add("hidden");
+    sidebar.classList.add("hidden");
+    hamburgerBtn.classList.add("hidden");
+    authSection.classList.remove("hidden");
+    navSettings.classList.add("hidden");
   }
 };
 
 const setLoggedOutUI = () => {
+  // Clear global state
+  currentUser = null;
+  currentUserRole = null;
+  currentFamilyId = null;
+  
   userEmail.textContent = "—";
   userUid.textContent = "—";
   userPanel.classList.add("hidden");
   createFamilySection.classList.add("hidden");
   familyPanel.classList.add("hidden");
-  familySettingsSection.classList.add("hidden");
+  sidebar.classList.add("hidden");
+  hamburgerBtn.classList.add("hidden");
+  navSettings.classList.add("hidden");
   document.querySelector(".auth-toggle").classList.remove("hidden");
   setAuthView("login");
+  
+  // Show auth section
+  authSection.classList.remove("hidden");
+  tasksSection.classList.add("hidden");
+  calendarSection.classList.add("hidden");
+  messagesSection.classList.add("hidden");
+  familySettingsSection.classList.add("hidden");
 };
 
 const renderFamilyMembers = async () => {
@@ -247,6 +361,27 @@ const init = () => {
       clearError();
       setAuthView(btn.dataset.target);
     });
+  });
+
+  // Sidebar toggle (mobile)
+  hamburgerBtn.addEventListener("click", toggleSidebar);
+  sidebarOverlay.addEventListener("click", closeSidebar);
+
+  // Sidebar navigation
+  navLinks.forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      const section = link.dataset.section;
+      if (section) {
+        showSection(section);
+      }
+    });
+  });
+
+  // Sidebar logout
+  sidebarLogout.addEventListener("click", async (e) => {
+    e.preventDefault();
+    await handleLogout();
   });
 
   // Form submissions
