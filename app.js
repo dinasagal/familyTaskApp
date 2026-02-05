@@ -1,3 +1,4 @@
+import { db } from "./firebase.js";
 import {
   register,
   login,
@@ -9,6 +10,19 @@ import {
   setupAuthListener,
 } from "./auth.js";
 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
 // ====================
 // GLOBAL STATE (Exposed)
 // ====================
@@ -16,6 +30,10 @@ import {
 export let currentUser = null;
 export let currentUserRole = null;
 export let currentFamilyId = null;
+
+let familyMembers = [];
+let memberMap = new Map();
+let archiveVisible = false;
 
 // ====================
 // DOM ELEMENTS
@@ -54,6 +72,18 @@ const authSection = document.getElementById("auth-section");
 const tasksSection = document.getElementById("tasks-section");
 const calendarSection = document.getElementById("calendar-section");
 const messagesSection = document.getElementById("messages-section");
+
+// Tasks module elements
+const taskForm = document.getElementById("task-form");
+const assignedUserWrapper = document.getElementById("assigned-user-wrapper");
+const assignedUserSelect = document.getElementById("assigned-user");
+const taskCategorySelect = document.getElementById("task-category");
+const tasksList = document.getElementById("tasks-list");
+const tasksEmpty = document.getElementById("tasks-empty");
+const archiveToggle = document.getElementById("archive-toggle");
+const archiveSection = document.getElementById("archive-section");
+const archiveList = document.getElementById("archive-list");
+const archiveEmpty = document.getElementById("archive-empty");
 
 // ====================
 // UI HELPERS
@@ -117,6 +147,7 @@ const showSection = (sectionName) => {
   switch (sectionName) {
     case "tasks":
       tasksSection.classList.remove("hidden");
+      loadTasks();
       break;
     case "calendar":
       calendarSection.classList.remove("hidden");
@@ -180,9 +211,6 @@ const setLoggedInUI = async (userData) => {
     sidebar.classList.remove("hidden");
     hamburgerBtn.classList.remove("hidden");
     authSection.classList.add("hidden");
-    
-    // Show default section (Tasks)
-    showSection("tasks");
 
     // If parent, enable family settings access via sidebar
     if (userData.role === "parent") {
@@ -190,7 +218,20 @@ const setLoggedInUI = async (userData) => {
       await renderFamilyMembers();
     } else {
       navSettings.classList.add("hidden");
+      familyMembers = [
+        {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          name: userData?.name || "",
+          role: userData?.role || "child",
+        },
+      ];
+      memberMap = new Map(familyMembers.map((member) => [member.uid, member]));
+      populateAssigneeOptions();
     }
+
+    // Show default section (Tasks)
+    showSection("tasks");
   } else {
     // User has no family - show create family form in auth section
     createFamilySection.classList.remove("hidden");
@@ -225,11 +266,21 @@ const setLoggedOutUI = () => {
   calendarSection.classList.add("hidden");
   messagesSection.classList.add("hidden");
   familySettingsSection.classList.add("hidden");
+  tasksList.innerHTML = "";
+  archiveList.innerHTML = "";
+  tasksEmpty.classList.add("hidden");
+  archiveEmpty.classList.add("hidden");
+  archiveSection.classList.add("hidden");
+  archiveVisible = false;
+  archiveToggle.textContent = "Show Archive";
 };
 
 const renderFamilyMembers = async () => {
   try {
     const members = await loadFamilyMembers();
+    familyMembers = members;
+    memberMap = new Map(members.map((member) => [member.uid, member]));
+    populateAssigneeOptions();
     
     if (members.length === 0) {
       familyMembersSection.classList.add("hidden");
@@ -248,6 +299,257 @@ const renderFamilyMembers = async () => {
   } catch (error) {
     console.error("Error rendering family members:", error);
   }
+};
+
+// ====================
+// TASKS MODULE
+// ====================
+
+const populateAssigneeOptions = () => {
+  if (!assignedUserSelect) {
+    return;
+  }
+
+  assignedUserSelect.innerHTML = "";
+
+  if (currentUserRole === "parent") {
+    assignedUserWrapper.classList.remove("hidden");
+    familyMembers.forEach((member) => {
+      const option = document.createElement("option");
+      option.value = member.uid;
+      option.textContent = member.name ? `${member.name} (${member.email})` : member.email;
+      assignedUserSelect.appendChild(option);
+    });
+  } else {
+    assignedUserWrapper.classList.add("hidden");
+    if (currentUser) {
+      const option = document.createElement("option");
+      option.value = currentUser.uid;
+      option.textContent = "You";
+      assignedUserSelect.appendChild(option);
+    }
+  }
+};
+
+const categoryColors = {
+  Home: "#60a5fa",
+  School: "#34d399",
+  Chores: "#fbbf24",
+  Health: "#f472b6",
+  Other: "#a78bfa",
+};
+
+const getCategoryColor = (category) => {
+  return categoryColors[category] || "#cbd5f5";
+};
+
+const getAssigneeName = (uid) => {
+  const member = memberMap.get(uid);
+  if (!member) {
+    return "Unknown";
+  }
+  return member.name ? member.name : member.email;
+};
+
+const fetchTasks = async (status) => {
+  if (!currentFamilyId) {
+    return [];
+  }
+
+  const tasksRef = collection(db, "tasks");
+  
+  let tasksQuery;
+  if (currentUserRole === "child") {
+    // Children can only read tasks assigned to them
+    tasksQuery = query(
+      tasksRef,
+      where("familyId", "==", currentFamilyId),
+      where("status", "==", status),
+      where("assignedUserUid", "==", currentUser.uid),
+      orderBy("createdAt", "desc")
+    );
+  } else {
+    // Parents can read all family tasks
+    tasksQuery = query(
+      tasksRef,
+      where("familyId", "==", currentFamilyId),
+      where("status", "==", status),
+      orderBy("createdAt", "desc")
+    );
+  }
+
+  const snapshot = await getDocs(tasksQuery);
+  const tasks = snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+  }));
+
+  return tasks;
+};
+
+const renderTaskList = (tasks, container, emptyEl, isArchive) => {
+  container.innerHTML = "";
+
+  if (tasks.length === 0) {
+    emptyEl.classList.remove("hidden");
+    return;
+  }
+
+  emptyEl.classList.add("hidden");
+
+  tasks.forEach((task) => {
+    const card = document.createElement("div");
+    card.className = "task-card";
+
+    const stripe = document.createElement("div");
+    stripe.className = "task-stripe";
+    stripe.style.background = task.categoryColor || "#cbd5f5";
+
+    const content = document.createElement("div");
+    content.className = "task-content";
+
+    const title = document.createElement("h4");
+    title.className = "task-title";
+    title.textContent = task.title;
+
+    const description = document.createElement("p");
+    description.className = "muted";
+    description.textContent = task.content || "";
+
+    const meta = document.createElement("div");
+    meta.className = "task-meta";
+
+    const assigned = document.createElement("span");
+    assigned.textContent = `Assigned: ${getAssigneeName(task.assignedUserUid)}`;
+
+    const due = document.createElement("span");
+    due.textContent = task.dueDate ? `Due: ${task.dueDate}` : "No due date";
+
+    const category = document.createElement("span");
+    category.textContent = task.category || "Other";
+
+    meta.appendChild(assigned);
+    meta.appendChild(due);
+    meta.appendChild(category);
+
+    const actions = document.createElement("div");
+    actions.className = "task-actions";
+
+    const canEdit = currentUserRole === "parent" || task.assignedUserUid === currentUser.uid;
+
+    if (!isArchive) {
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.addEventListener("change", async () => {
+        await markTaskCompleted(task.id);
+      });
+      actions.appendChild(checkbox);
+    }
+
+    if (canEdit) {
+      const editBtn = document.createElement("button");
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", () => editTask(task));
+      actions.appendChild(editBtn);
+    }
+
+    if (isArchive && canEdit) {
+      const restoreBtn = document.createElement("button");
+      restoreBtn.textContent = "Restore";
+      restoreBtn.addEventListener("click", async () => {
+        await restoreTask(task.id);
+      });
+      actions.appendChild(restoreBtn);
+    }
+
+    if (canEdit) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", async () => {
+        await deleteTask(task.id);
+      });
+      actions.appendChild(deleteBtn);
+    }
+
+    content.appendChild(title);
+    content.appendChild(description);
+    content.appendChild(meta);
+    content.appendChild(actions);
+
+    card.appendChild(stripe);
+    card.appendChild(content);
+    container.appendChild(card);
+  });
+};
+
+const loadTasks = async () => {
+  const openTasks = await fetchTasks("open");
+  renderTaskList(openTasks, tasksList, tasksEmpty, false);
+
+  if (archiveVisible) {
+    const archivedTasks = await fetchTasks("completed");
+    renderTaskList(archivedTasks, archiveList, archiveEmpty, true);
+  }
+};
+
+const createTask = async (taskData) => {
+  const tasksRef = collection(db, "tasks");
+  await addDoc(tasksRef, {
+    ...taskData,
+    status: "open",
+    createdAt: serverTimestamp(),
+    completedAt: null,
+  });
+};
+
+const editTask = async (task) => {
+  const newTitle = window.prompt("Edit title", task.title);
+  if (!newTitle) {
+    return;
+  }
+
+  const newContent = window.prompt("Edit details", task.content || "");
+  const newDue = window.prompt("Edit due date (YYYY-MM-DD)", task.dueDate || "");
+  const newCategory = window.prompt("Edit category", task.category || "Other");
+  const categoryColor = getCategoryColor(newCategory || "Other");
+
+  const taskRef = doc(db, "tasks", task.id);
+  await updateDoc(taskRef, {
+    title: newTitle,
+    content: newContent || "",
+    dueDate: newDue || "",
+    category: newCategory || "Other",
+    categoryColor: categoryColor,
+  });
+
+  await loadTasks();
+};
+
+const markTaskCompleted = async (taskId) => {
+  const taskRef = doc(db, "tasks", taskId);
+  await updateDoc(taskRef, {
+    status: "completed",
+    completedAt: serverTimestamp(),
+  });
+
+  await loadTasks();
+};
+
+const restoreTask = async (taskId) => {
+  const taskRef = doc(db, "tasks", taskId);
+  await updateDoc(taskRef, {
+    status: "open",
+    completedAt: null,
+  });
+
+  await loadTasks();
+};
+
+const deleteTask = async (taskId) => {
+  const taskRef = doc(db, "tasks", taskId);
+  await deleteDoc(taskRef);
+
+  await loadTasks();
 };
 
 // ====================
@@ -337,6 +639,69 @@ const handleAddChild = async (event) => {
   }
 };
 
+const handleTaskSubmit = async (event) => {
+  event.preventDefault();
+  clearError();
+
+  if (!currentFamilyId || !currentUser) {
+    showError("Family not loaded yet.");
+    return;
+  }
+
+  const title = taskForm.title.value.trim();
+  const content = taskForm.content.value.trim();
+  const dueDate = taskForm.dueDate.value;
+  const category = taskCategorySelect.value;
+  const assignedUserUid = assignedUserSelect.value || currentUser.uid;
+
+  if (!title) {
+    showError("Title is required.");
+    return;
+  }
+
+  if (!assignedUserUid) {
+    showError("Assigned user is required.");
+    return;
+  }
+
+  if (currentUserRole === "child" && assignedUserUid !== currentUser.uid) {
+    showError("Children can only assign tasks to themselves.");
+    return;
+  }
+
+  const categoryColor = getCategoryColor(category);
+
+  try {
+    setStatus("Creating task…");
+    await createTask({
+      familyId: currentFamilyId,
+      assignedUserUid,
+      createdByUid: currentUser.uid,
+      title,
+      content,
+      category,
+      categoryColor,
+      dueDate,
+    });
+    taskForm.reset();
+    populateAssigneeOptions();
+    setStatus("Task created.");
+    await loadTasks();
+  } catch (error) {
+    showError(error.message);
+    setStatus("Task creation failed.");
+  }
+};
+
+const handleArchiveToggle = async () => {
+  archiveVisible = !archiveVisible;
+  archiveSection.classList.toggle("hidden", !archiveVisible);
+  archiveToggle.textContent = archiveVisible ? "Hide Archive" : "Show Archive";
+  if (archiveVisible) {
+    await loadTasks();
+  }
+};
+
 const handleLogout = async () => {
   clearError();
   try {
@@ -389,7 +754,10 @@ const init = () => {
   registerForm.addEventListener("submit", handleRegisterSubmit);
   createFamilyForm.addEventListener("submit", handleCreateFamily);
   addChildForm.addEventListener("submit", handleAddChild);
+  taskForm.addEventListener("submit", handleTaskSubmit);
   logoutBtn.addEventListener("click", handleLogout);
+
+  archiveToggle.addEventListener("click", handleArchiveToggle);
 
   // Auth state listener
   setupAuthListener((user, userData) => {
@@ -404,4 +772,4 @@ const init = () => {
   });
 };
 
-init();init();
+init();

@@ -109,7 +109,53 @@
             <h1>📋 Tasks</h1>
           </div>
           <div class="card">
-            <p class="muted">Task management coming soon...</p>
+            <h3>Create Task</h3>
+            <form id="task-form" class="task-form">
+              <label>
+                Title
+                <input type="text" name="title" required placeholder="e.g. Clean the kitchen" />
+              </label>
+              <label>
+                Details
+                <textarea name="content" rows="3" placeholder="Add task details..."></textarea>
+              </label>
+              <div id="assigned-user-wrapper" class="task-field">
+                <label>
+                  Assign To
+                  <select id="assigned-user" name="assignedUser"></select>
+                </label>
+              </div>
+              <label>
+                Category
+                <select id="task-category" name="category">
+                  <option value="Home" data-color="#60a5fa">Home</option>
+                  <option value="School" data-color="#34d399">School</option>
+                  <option value="Chores" data-color="#fbbf24">Chores</option>
+                  <option value="Health" data-color="#f472b6">Health</option>
+                  <option value="Other" data-color="#a78bfa">Other</option>
+                </select>
+              </label>
+              <label>
+                Due Date
+                <input type="date" name="dueDate" />
+              </label>
+              <button type="submit" class="primary">Save Task</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="task-board-header">
+              <h3>Open Tasks</h3>
+              <button id="archive-toggle" class="ghost">Show Archive</button>
+            </div>
+            <div id="tasks-list" class="task-list"></div>
+            <div id="tasks-empty" class="task-empty hidden">No open tasks yet.</div>
+          </div>
+
+          <div id="archive-section" class="card hidden">
+            <h3>Archive</h3>
+            <div id="archive-list" class="task-list"></div>
+            <div id="archive-empty" class="task-empty hidden">No archived tasks yet.</div>
           </div>
         </section>
 
