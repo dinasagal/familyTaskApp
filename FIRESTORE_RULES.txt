@@ -58,5 +58,27 @@ service cloud.firestore {
                                 resource.data.assignedUserUid == request.auth.uid) &&
                                resource.data.familyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
     }
+
+    // Events collection
+    match /events/{eventId} {
+      // Parents and children can create events in their family
+      allow create: if request.auth != null && 
+                       exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                       request.resource.data.familyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
+      
+      // Parents can read all family events, children only their own
+      allow read: if request.auth != null && 
+                     exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                     (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "parent" ||
+                      resource.data.userUid == request.auth.uid) &&
+                     resource.data.familyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
+      
+      // Parents can update/delete all family events, children only their own
+      allow update, delete: if request.auth != null && 
+                               exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                               (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "parent" ||
+                                resource.data.userUid == request.auth.uid) &&
+                               resource.data.familyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
+    }
   }
 }

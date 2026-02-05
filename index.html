@@ -164,10 +164,73 @@
           <div class="section-header">
             <h1>📅 Calendar</h1>
           </div>
+          
+          <!-- Parent User Selector -->
+          <div id="calendar-user-selector" class="card hidden">
+            <label>
+              View Calendar For:
+              <select id="calendar-user-select"></select>
+            </label>
+          </div>
+
+          <!-- Calendar Controls -->
           <div class="card">
-            <p class="muted">Calendar feature coming soon...</p>
+            <div class="calendar-header">
+              <button id="calendar-prev" class="ghost">◀ Prev</button>
+              <h2 id="calendar-month-year"></h2>
+              <button id="calendar-next" class="ghost">Next ▶</button>
+            </div>
+            
+            <!-- Calendar Grid -->
+            <div class="calendar-grid">
+              <div class="calendar-day-name">Sun</div>
+              <div class="calendar-day-name">Mon</div>
+              <div class="calendar-day-name">Tue</div>
+              <div class="calendar-day-name">Wed</div>
+              <div class="calendar-day-name">Thu</div>
+              <div class="calendar-day-name">Fri</div>
+              <div class="calendar-day-name">Sat</div>
+              <div id="calendar-days-container"></div>
+            </div>
           </div>
         </section>
+
+        <!-- Event Modal -->
+        <div id="event-modal" class="modal hidden">
+          <div class="modal-content">
+            <h3 id="event-modal-title">Add Event</h3>
+            <form id="event-form">
+              <input type="hidden" id="event-id" />
+              <label>
+                Title *
+                <input type="text" id="event-title" required placeholder="Event title" />
+              </label>
+              <label>
+                Description
+                <textarea id="event-description" rows="3" placeholder="Event details..."></textarea>
+              </label>
+              <label>
+                Date *
+                <input type="date" id="event-date" required />
+              </label>
+              <label>
+                Time
+                <input type="time" id="event-time" />
+              </label>
+              <div id="event-user-wrapper" class="hidden">
+                <label>
+                  Assign To
+                  <select id="event-user-select"></select>
+                </label>
+              </div>
+              <div class="modal-actions">
+                <button type="submit" class="primary">Save</button>
+                <button type="button" id="event-delete-btn" class="ghost hidden">Delete</button>
+                <button type="button" id="event-cancel-btn" class="ghost">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
 
         <!-- Messages Section -->
         <section id="messages-section" class="content-section hidden">

@@ -35,6 +35,12 @@ let familyMembers = [];
 let memberMap = new Map();
 let archiveVisible = false;
 
+// Calendar module state
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let selectedCalendarUserUid = null;
+let calendarEvents = [];
+
 // ====================
 // DOM ELEMENTS
 // ====================
@@ -84,6 +90,26 @@ const archiveToggle = document.getElementById("archive-toggle");
 const archiveSection = document.getElementById("archive-section");
 const archiveList = document.getElementById("archive-list");
 const archiveEmpty = document.getElementById("archive-empty");
+
+// Calendar module elements
+const calendarUserSelector = document.getElementById("calendar-user-selector");
+const calendarUserSelect = document.getElementById("calendar-user-select");
+const calendarPrevBtn = document.getElementById("calendar-prev");
+const calendarNextBtn = document.getElementById("calendar-next");
+const calendarMonthYear = document.getElementById("calendar-month-year");
+const calendarDaysContainer = document.getElementById("calendar-days-container");
+const eventModal = document.getElementById("event-modal");
+const eventForm = document.getElementById("event-form");
+const eventModalTitle = document.getElementById("event-modal-title");
+const eventIdInput = document.getElementById("event-id");
+const eventTitleInput = document.getElementById("event-title");
+const eventDescriptionInput = document.getElementById("event-description");
+const eventDateInput = document.getElementById("event-date");
+const eventTimeInput = document.getElementById("event-time");
+const eventUserWrapper = document.getElementById("event-user-wrapper");
+const eventUserSelect = document.getElementById("event-user-select");
+const eventDeleteBtn = document.getElementById("event-delete-btn");
+const eventCancelBtn = document.getElementById("event-cancel-btn");
 
 // ====================
 // UI HELPERS
@@ -151,6 +177,7 @@ const showSection = (sectionName) => {
       break;
     case "calendar":
       calendarSection.classList.remove("hidden");
+      loadCalendar();
       break;
     case "messages":
       messagesSection.classList.remove("hidden");
@@ -273,6 +300,13 @@ const setLoggedOutUI = () => {
   archiveSection.classList.add("hidden");
   archiveVisible = false;
   archiveToggle.textContent = "Show Archive";
+  
+  // Reset calendar state
+  selectedCalendarUserUid = null;
+  calendarEvents = [];
+  currentMonth = new Date().getMonth();
+  currentYear = new Date().getFullYear();
+  calendarDaysContainer.innerHTML = "";
 };
 
 const renderFamilyMembers = async () => {
@@ -281,6 +315,11 @@ const renderFamilyMembers = async () => {
     familyMembers = members;
     memberMap = new Map(members.map((member) => [member.uid, member]));
     populateAssigneeOptions();
+    populateCalendarUserSelect();
+    if (!selectedCalendarUserUid && members.length > 0) {
+      selectedCalendarUserUid = members[0].uid;
+      calendarUserSelect.value = selectedCalendarUserUid;
+    }
     
     if (members.length === 0) {
       familyMembersSection.classList.add("hidden");
@@ -553,6 +592,268 @@ const deleteTask = async (taskId) => {
 };
 
 // ====================
+// CALENDAR MODULE
+// ====================
+
+const populateCalendarUserSelect = () => {
+  calendarUserSelect.innerHTML = "";
+  familyMembers.forEach((member) => {
+    const option = document.createElement("option");
+    option.value = member.uid;
+    option.textContent = member.name ? member.name : member.email;
+    calendarUserSelect.appendChild(option);
+  });
+};
+
+const populateEventUserSelect = () => {
+  eventUserSelect.innerHTML = "";
+  familyMembers.forEach((member) => {
+    const option = document.createElement("option");
+    option.value = member.uid;
+    option.textContent = member.name ? member.name : member.email;
+    eventUserSelect.appendChild(option);
+  });
+};
+
+const fetchEvents = async (userUid) => {
+  if (!currentFamilyId || !userUid) {
+    return [];
+  }
+
+  const eventsRef = collection(db, "events");
+  const eventsQuery = query(
+    eventsRef,
+    where("familyId", "==", currentFamilyId),
+    where("userUid", "==", userUid),
+    orderBy("datetime", "asc")
+  );
+
+  const snapshot = await getDocs(eventsQuery);
+  return snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+  }));
+};
+
+const renderCalendar = () => {
+  // Update header
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  calendarMonthYear.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+
+  // Clear days
+  calendarDaysContainer.innerHTML = "";
+
+  // Calculate calendar dates
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+  const today = new Date();
+  const isCurrentMonth =
+    today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+  const todayDate = today.getDate();
+
+  // Group events by day
+  const eventsByDay = {};
+  calendarEvents.forEach((event) => {
+    if (!event.datetime || !event.datetime.toDate) return;
+    const eventDate = event.datetime.toDate();
+    if (
+      eventDate.getMonth() === currentMonth &&
+      eventDate.getFullYear() === currentYear
+    ) {
+      const day = eventDate.getDate();
+      if (!eventsByDay[day]) {
+        eventsByDay[day] = [];
+      }
+      eventsByDay[day].push(event);
+    }
+  });
+
+  // Render previous month days
+  for (let i = firstDay - 1; i >= 0; i--) {
+    const day = daysInPrevMonth - i;
+    const dayEl = document.createElement("div");
+    dayEl.className = "calendar-day other-month";
+    dayEl.innerHTML = `<div class="calendar-day-number">${day}</div>`;
+    calendarDaysContainer.appendChild(dayEl);
+  }
+
+  // Render current month days
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayEl = document.createElement("div");
+    dayEl.className = "calendar-day";
+
+    if (isCurrentMonth && day === todayDate) {
+      dayEl.classList.add("today");
+    }
+
+    const dayNumber = document.createElement("div");
+    dayNumber.className = "calendar-day-number";
+    dayNumber.textContent = day;
+    dayEl.appendChild(dayNumber);
+
+    // Add events for this day
+    if (eventsByDay[day]) {
+      eventsByDay[day].forEach((event) => {
+        const eventEl = document.createElement("div");
+        eventEl.className = "calendar-event";
+        let eventText = event.title;
+        if (event.datetime && event.datetime.toDate) {
+          const eventDate = event.datetime.toDate();
+          const hours = eventDate.getHours();
+          const minutes = eventDate.getMinutes();
+          if (hours !== 0 || minutes !== 0) {
+            const timeStr = `${hours % 12 || 12}:${String(minutes).padStart(
+              2,
+              "0"
+            )}${hours >= 12 ? "pm" : "am"}`;
+            eventText = `${timeStr} ${eventText}`;
+          }
+        }
+        eventEl.textContent = eventText;
+        eventEl.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openEventModal(event);
+        });
+        dayEl.appendChild(eventEl);
+      });
+    }
+
+    // Click empty day to add event
+    dayEl.addEventListener("click", () => {
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(
+        2,
+        "0"
+      )}-${String(day).padStart(2, "0")}`;
+      openEventModal(null, dateStr);
+    });
+
+    calendarDaysContainer.appendChild(dayEl);
+  }
+
+  // Render next month days to fill grid
+  const totalCells = calendarDaysContainer.children.length;
+  const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for (let day = 1; day <= remainingCells; day++) {
+    const dayEl = document.createElement("div");
+    dayEl.className = "calendar-day other-month";
+    dayEl.innerHTML = `<div class="calendar-day-number">${day}</div>`;
+    calendarDaysContainer.appendChild(dayEl);
+  }
+};
+
+const loadCalendar = async () => {
+  // Determine which user calendar to show
+  if (currentUserRole === "parent") {
+    calendarUserSelector.classList.remove("hidden");
+    populateCalendarUserSelect();
+    if (!selectedCalendarUserUid && familyMembers.length > 0) {
+      selectedCalendarUserUid = familyMembers[0].uid;
+      calendarUserSelect.value = selectedCalendarUserUid;
+    }
+  } else {
+    calendarUserSelector.classList.add("hidden");
+    selectedCalendarUserUid = currentUser.uid;
+  }
+
+  if (!selectedCalendarUserUid) {
+    return;
+  }
+
+  // Fetch and render
+  calendarEvents = await fetchEvents(selectedCalendarUserUid);
+  renderCalendar();
+};
+
+const openEventModal = (event = null, dateStr = null) => {
+  eventModal.classList.remove("hidden");
+
+  if (event) {
+    // Edit mode
+    eventModalTitle.textContent = "Edit Event";
+    eventIdInput.value = event.id;
+    eventTitleInput.value = event.title;
+    eventDescriptionInput.value = event.description || "";
+
+    if (event.datetime && event.datetime.toDate) {
+      const eventDate = event.datetime.toDate();
+      const dateStr = `${eventDate.getFullYear()}-${String(
+        eventDate.getMonth() + 1
+      ).padStart(2, "0")}-${String(eventDate.getDate()).padStart(2, "0")}`;
+      eventDateInput.value = dateStr;
+
+      const hours = eventDate.getHours();
+      const minutes = eventDate.getMinutes();
+      if (hours !== 0 || minutes !== 0) {
+        eventTimeInput.value = `${String(hours).padStart(2, "0")}:${String(
+          minutes
+        ).padStart(2, "0")}`;
+      } else {
+        eventTimeInput.value = "";
+      }
+    }
+
+    eventDeleteBtn.classList.remove("hidden");
+  } else {
+    // Add mode
+    eventModalTitle.textContent = "Add Event";
+    eventIdInput.value = "";
+    eventTitleInput.value = "";
+    eventDescriptionInput.value = "";
+    eventDateInput.value = dateStr || "";
+    eventTimeInput.value = "";
+    eventDeleteBtn.classList.add("hidden");
+  }
+
+  // Show user selector for parents
+  if (currentUserRole === "parent") {
+    eventUserWrapper.classList.remove("hidden");
+    populateEventUserSelect();
+    eventUserSelect.value = selectedCalendarUserUid;
+  } else {
+    eventUserWrapper.classList.add("hidden");
+  }
+};
+
+const closeEventModal = () => {
+  eventModal.classList.add("hidden");
+  eventForm.reset();
+};
+
+const createEvent = async (eventData) => {
+  const eventsRef = collection(db, "events");
+  await addDoc(eventsRef, {
+    ...eventData,
+    familyId: currentFamilyId,
+    createdAt: serverTimestamp(),
+  });
+};
+
+const updateEvent = async (eventId, eventData) => {
+  const eventRef = doc(db, "events", eventId);
+  await updateDoc(eventRef, eventData);
+};
+
+const deleteEvent = async (eventId) => {
+  const eventRef = doc(db, "events", eventId);
+  await deleteDoc(eventRef);
+};
+
+// ====================
 // EVENT HANDLERS
 // ====================
 
@@ -702,6 +1003,101 @@ const handleArchiveToggle = async () => {
   }
 };
 
+const handleCalendarUserChange = async () => {
+  selectedCalendarUserUid = calendarUserSelect.value;
+  await loadCalendar();
+};
+
+const handleCalendarPrev = () => {
+  currentMonth--;
+  if (currentMonth < 0) {
+    currentMonth = 11;
+    currentYear--;
+  }
+  renderCalendar();
+};
+
+const handleCalendarNext = () => {
+  currentMonth++;
+  if (currentMonth > 11) {
+    currentMonth = 0;
+    currentYear++;
+  }
+  renderCalendar();
+};
+
+const handleEventSubmit = async (event) => {
+  event.preventDefault();
+
+  const title = eventTitleInput.value.trim();
+  const description = eventDescriptionInput.value.trim();
+  const dateStr = eventDateInput.value;
+  const timeStr = eventTimeInput.value;
+
+  if (!title || !dateStr) {
+    showError("Title and date are required.");
+    return;
+  }
+
+  // Build datetime
+  let datetime;
+  if (timeStr) {
+    datetime = new Date(`${dateStr}T${timeStr}`);
+  } else {
+    datetime = new Date(`${dateStr}T00:00`);
+  }
+
+  // Determine userUid
+  let userUid;
+  if (currentUserRole === "parent") {
+    userUid = eventUserSelect.value;
+  } else {
+    userUid = currentUser.uid;
+  }
+
+  const eventData = {
+    title,
+    description,
+    datetime,
+    userUid,
+  };
+
+  try {
+    const eventId = eventIdInput.value;
+    if (eventId) {
+      // Update existing event
+      await updateEvent(eventId, eventData);
+      setStatus("Event updated.");
+    } else {
+      // Create new event
+      await createEvent(eventData);
+      setStatus("Event created.");
+    }
+    closeEventModal();
+    await loadCalendar();
+  } catch (error) {
+    showError(error.message);
+    setStatus("Event save failed.");
+  }
+};
+
+const handleEventDelete = async () => {
+  const eventId = eventIdInput.value;
+  if (!eventId) return;
+
+  if (!confirm("Delete this event?")) return;
+
+  try {
+    await deleteEvent(eventId);
+    setStatus("Event deleted.");
+    closeEventModal();
+    await loadCalendar();
+  } catch (error) {
+    showError(error.message);
+    setStatus("Event delete failed.");
+  }
+};
+
 const handleLogout = async () => {
   clearError();
   try {
@@ -758,6 +1154,14 @@ const init = () => {
   logoutBtn.addEventListener("click", handleLogout);
 
   archiveToggle.addEventListener("click", handleArchiveToggle);
+
+  // Calendar event listeners
+  calendarUserSelect.addEventListener("change", handleCalendarUserChange);
+  calendarPrevBtn.addEventListener("click", handleCalendarPrev);
+  calendarNextBtn.addEventListener("click", handleCalendarNext);
+  eventForm.addEventListener("submit", handleEventSubmit);
+  eventDeleteBtn.addEventListener("click", handleEventDelete);
+  eventCancelBtn.addEventListener("click", closeEventModal);
 
   // Auth state listener
   setupAuthListener((user, userData) => {
