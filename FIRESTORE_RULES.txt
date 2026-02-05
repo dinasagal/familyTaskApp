@@ -80,5 +80,25 @@ service cloud.firestore {
                                 resource.data.userUid == request.auth.uid) &&
                                resource.data.familyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
     }
+
+    // Messages collection
+    match /messages/{messageId} {
+      // Family members can create messages
+      allow create: if request.auth != null && 
+                       exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                       request.resource.data.familyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
+      
+      // Family members can read all family messages
+      allow read: if request.auth != null && 
+                     exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                     resource.data.familyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
+      
+      // Parents can delete any message, children only their own
+      allow delete: if request.auth != null && 
+                       exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                       (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "parent" ||
+                        resource.data.authorUid == request.auth.uid) &&
+                       resource.data.familyId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
+    }
   }
 }

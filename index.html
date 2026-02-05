@@ -237,8 +237,30 @@
           <div class="section-header">
             <h1>💬 Message Board</h1>
           </div>
+          
+          <!-- Message Input Form -->
           <div class="card">
-            <p class="muted">Message board coming soon...</p>
+            <form id="message-form">
+              <label>
+                <textarea 
+                  id="message-text" 
+                  name="text" 
+                  rows="3" 
+                  placeholder="Write a message for your family..."
+                  maxlength="500"
+                ></textarea>
+              </label>
+              <div class="form-footer">
+                <span id="message-char-count" class="muted">0 / 500</span>
+                <button type="submit" class="primary">Post Message</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Messages List -->
+          <div id="messages-list" class="messages-list"></div>
+          <div id="messages-empty" class="messages-empty hidden">
+            <p class="muted">No messages yet. Be the first to post!</p>
           </div>
         </section>
 

@@ -111,6 +111,13 @@ const eventUserSelect = document.getElementById("event-user-select");
 const eventDeleteBtn = document.getElementById("event-delete-btn");
 const eventCancelBtn = document.getElementById("event-cancel-btn");
 
+// Message board module elements
+const messageForm = document.getElementById("message-form");
+const messageText = document.getElementById("message-text");
+const messageCharCount = document.getElementById("message-char-count");
+const messagesList = document.getElementById("messages-list");
+const messagesEmpty = document.getElementById("messages-empty");
+
 // ====================
 // UI HELPERS
 // ====================
@@ -181,6 +188,7 @@ const showSection = (sectionName) => {
       break;
     case "messages":
       messagesSection.classList.remove("hidden");
+      loadMessages();
       break;
     case "settings":
       familySettingsSection.classList.remove("hidden");
@@ -307,6 +315,12 @@ const setLoggedOutUI = () => {
   currentMonth = new Date().getMonth();
   currentYear = new Date().getFullYear();
   calendarDaysContainer.innerHTML = "";
+  
+  // Reset message board state
+  messageText.value = "";
+  messageCharCount.textContent = "0 / 500";
+  messagesList.innerHTML = "";
+  messagesEmpty.classList.add("hidden");
 };
 
 const renderFamilyMembers = async () => {
@@ -854,6 +868,140 @@ const deleteEvent = async (eventId) => {
 };
 
 // ====================
+// MESSAGE BOARD MODULE
+// ====================
+
+const formatTimeAgo = (timestamp) => {
+  if (!timestamp || !timestamp.toDate) return "just now";
+  
+  const date = timestamp.toDate();
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  
+  return date.toLocaleDateString();
+};
+
+const fetchMessages = async () => {
+  if (!currentFamilyId) {
+    return [];
+  }
+
+  const messagesRef = collection(db, "messages");
+  const messagesQuery = query(
+    messagesRef,
+    where("familyId", "==", currentFamilyId),
+    orderBy("createdAt", "desc")
+  );
+
+  const snapshot = await getDocs(messagesQuery);
+  return snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+  }));
+};
+
+const renderMessages = (messages) => {
+  messagesList.innerHTML = "";
+
+  if (messages.length === 0) {
+    messagesEmpty.classList.remove("hidden");
+    return;
+  }
+
+  messagesEmpty.classList.add("hidden");
+
+  messages.forEach((message) => {
+    const card = document.createElement("div");
+    card.className = "message-card";
+    
+    // Highlight own messages
+    if (message.authorUid === currentUser.uid) {
+      card.classList.add("own");
+    }
+
+    // Header: author + time
+    const header = document.createElement("div");
+    header.className = "message-header";
+
+    const author = document.createElement("span");
+    author.className = "message-author";
+    if (message.authorUid === currentUser.uid) {
+      author.classList.add("own");
+    }
+    author.textContent = message.authorName || message.authorUid;
+    header.appendChild(author);
+
+    const time = document.createElement("span");
+    time.className = "message-time";
+    time.textContent = formatTimeAgo(message.createdAt);
+    header.appendChild(time);
+
+    card.appendChild(header);
+
+    // Message text
+    const text = document.createElement("div");
+    text.className = "message-text";
+    text.textContent = message.text;
+    card.appendChild(text);
+
+    // Actions
+    const actions = document.createElement("div");
+    actions.className = "message-actions";
+
+    // Delete button: show for parent on all, show for child on own only
+    const canDelete =
+      currentUserRole === "parent" || message.authorUid === currentUser.uid;
+
+    if (canDelete) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "message-delete-btn";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", async () => {
+        if (!confirm("Delete this message?")) return;
+        try {
+          await deleteMessage(message.id);
+          await loadMessages();
+          setStatus("Message deleted.");
+        } catch (error) {
+          showError(error.message);
+          setStatus("Delete failed.");
+        }
+      });
+      actions.appendChild(deleteBtn);
+    }
+
+    card.appendChild(actions);
+    messagesList.appendChild(card);
+  });
+};
+
+const loadMessages = async () => {
+  const messages = await fetchMessages();
+  renderMessages(messages);
+};
+
+const createMessage = async (text) => {
+  const messagesRef = collection(db, "messages");
+  await addDoc(messagesRef, {
+    familyId: currentFamilyId,
+    authorUid: currentUser.uid,
+    authorName: currentUser.name || currentUser.email,
+    text,
+    createdAt: serverTimestamp(),
+  });
+};
+
+const deleteMessage = async (messageId) => {
+  const messageRef = doc(db, "messages", messageId);
+  await deleteDoc(messageRef);
+};
+
+// ====================
 // EVENT HANDLERS
 // ====================
 
@@ -1001,6 +1149,35 @@ const handleArchiveToggle = async () => {
   if (archiveVisible) {
     await loadTasks();
   }
+};
+
+const handleMessageSubmit = async (event) => {
+  event.preventDefault();
+  clearError();
+
+  const text = messageText.value.trim();
+
+  if (!text) {
+    showError("Message cannot be empty.");
+    return;
+  }
+
+  try {
+    setStatus("Posting message…");
+    await createMessage(text);
+    messageText.value = "";
+    messageCharCount.textContent = "0 / 500";
+    setStatus("Message posted.");
+    await loadMessages();
+  } catch (error) {
+    showError(error.message);
+    setStatus("Message posting failed.");
+  }
+};
+
+const handleMessageTextInput = () => {
+  const count = messageText.value.length;
+  messageCharCount.textContent = `${count} / 500`;
 };
 
 const handleCalendarUserChange = async () => {
@@ -1154,6 +1331,10 @@ const init = () => {
   logoutBtn.addEventListener("click", handleLogout);
 
   archiveToggle.addEventListener("click", handleArchiveToggle);
+
+  // Message board event listeners
+  messageForm.addEventListener("submit", handleMessageSubmit);
+  messageText.addEventListener("input", handleMessageTextInput);
 
   // Calendar event listeners
   calendarUserSelect.addEventListener("change", handleCalendarUserChange);
