@@ -86,7 +86,10 @@ const calendarSection = document.getElementById("calendar-section");
 const messagesSection = document.getElementById("messages-section");
 
 // Tasks module elements
+const newTaskBtn = document.getElementById("new-task-btn");
+const taskFormCard = document.getElementById("task-form-card");
 const taskForm = document.getElementById("task-form");
+const cancelTaskBtn = document.getElementById("cancel-task-btn");
 const assignedUserWrapper = document.getElementById("assigned-user-wrapper");
 const assignedUserSelect = document.getElementById("assigned-user");
 const taskCategorySelect = document.getElementById("task-category");
@@ -549,6 +552,26 @@ const loadTasks = async () => {
     const archivedTasks = await fetchTasks("completed");
     renderTaskList(archivedTasks, archiveList, archiveEmpty, true);
   }
+};
+
+const openTaskForm = () => {
+  taskFormCard.classList.remove("task-form-collapsed");
+  newTaskBtn.classList.add("hidden");
+  
+  // Focus on first input after animation starts
+  setTimeout(() => {
+    const firstInput = taskForm.querySelector('input[name="title"]');
+    if (firstInput) {
+      firstInput.focus();
+    }
+  }, 100);
+};
+
+const closeTaskForm = () => {
+  taskFormCard.classList.add("task-form-collapsed");
+  taskForm.reset();
+  populateAssigneeOptions();
+  newTaskBtn.classList.remove("hidden");
 };
 
 const createTask = async (taskData) => {
@@ -1138,10 +1161,9 @@ const handleTaskSubmit = async (event) => {
       categoryColor,
       dueDate,
     });
-    taskForm.reset();
-    populateAssigneeOptions();
     setStatus("Task created.");
     await loadTasks();
+    closeTaskForm();
   } catch (error) {
     showError(error.message);
     setStatus("Task creation failed.");
@@ -1421,6 +1443,10 @@ const init = () => {
   addChildForm.addEventListener("submit", handleAddChild);
   taskForm.addEventListener("submit", handleTaskSubmit);
   logoutBtn.addEventListener("click", handleLogout);
+
+  // Task form collapsible handlers
+  newTaskBtn.addEventListener("click", openTaskForm);
+  cancelTaskBtn.addEventListener("click", closeTaskForm);
 
   archiveToggle.addEventListener("click", handleArchiveToggle);
 

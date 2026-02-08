@@ -385,9 +385,60 @@ button.ghost:hover {
    TASKS MODULE
    ==================== */
 
+.new-task-btn {
+  width: 100%;
+  padding: 18px 24px;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: 4px solid #047857;
+  border-radius: 12px;
+  color: white;
+  font-size: 20px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 6px 0 #047857;
+}
+
+.new-task-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 #047857;
+}
+
+.new-task-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 3px 0 #047857;
+}
+
+.new-task-btn.hidden {
+  display: none;
+}
+
+.task-form-collapsed {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  transition: max-height 0.3s ease-out, opacity 0.2s ease-out, padding 0.3s ease-out, margin 0.3s ease-out;
+}
+
 .task-form {
   display: grid;
   gap: 16px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.form-actions button {
+  flex: 1;
 }
 
 .task-form textarea,

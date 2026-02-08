@@ -122,7 +122,11 @@
           <div class="section-header">
             <h1>📋 Tasks</h1>
           </div>
-          <div class="card">
+          
+          <!-- New Task Button -->
+          <button id="new-task-btn" class="new-task-btn">➕ New Task</button>
+          
+          <div id="task-form-card" class="card task-form-collapsed">
             <h3>Create Task</h3>
             <form id="task-form" class="task-form">
               <label>
@@ -153,7 +157,10 @@
                 Due Date
                 <input type="date" name="dueDate" />
               </label>
-              <button type="submit" class="primary">Save Task</button>
+              <div class="form-actions">
+                <button type="submit" class="primary">Save Task</button>
+                <button type="button" id="cancel-task-btn" class="ghost">Cancel</button>
+              </div>
             </form>
           </div>
 
