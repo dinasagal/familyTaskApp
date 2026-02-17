@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   addDoc,
   collection,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // ====================
@@ -261,5 +262,75 @@ export const loadFamilyMembers = async () => {
   } catch (error) {
     console.error("Error loading family members:", error);
     return [];
+  }
+};
+
+// ====================
+// DELETE CHILD USER
+// ====================
+
+export const deleteChildUser = async (childUid) => {
+  if (!currentUser) {
+    throw new Error("Not authenticated.");
+  }
+  
+  if (currentUserData?.role !== "parent") {
+    throw new Error("Only parents can delete child users.");
+  }
+  
+  if (!currentUserData?.familyId) {
+    throw new Error("Parent must belong to a family.");
+  }
+  
+  try {
+    // Get the child user doc to verify they exist and belong to this family
+    const childRef = doc(db, "users", childUid);
+    const childSnap = await getDoc(childRef);
+    
+    if (!childSnap.exists()) {
+      throw new Error("Child user not found.");
+    }
+    
+    const childData = childSnap.data();
+    
+    // Security checks
+    if (childData.role !== "child") {
+      throw new Error("Can only delete child users.");
+    }
+    
+    if (childData.familyId !== currentUserData.familyId) {
+      throw new Error("Cannot delete users from other families.");
+    }
+    
+    if (childUid === currentUser.uid) {
+      throw new Error("Cannot delete yourself.");
+    }
+    
+    // Step 1: Soft-delete the user (mark as deleted)
+    await updateDoc(childRef, {
+      isDeleted: true,
+      deletedAt: serverTimestamp(),
+    });
+    
+    // Step 2: Remove child UID from family memberUids
+    const familyRef = doc(db, "families", currentUserData.familyId);
+    const familySnap = await getDoc(familyRef);
+    
+    if (familySnap.exists()) {
+      const familyData = familySnap.data();
+      const memberUids = familyData.memberUids || [];
+      const updatedMemberUids = memberUids.filter((uid) => uid !== childUid);
+      
+      await updateDoc(familyRef, {
+        memberUids: updatedMemberUids,
+      });
+    }
+    
+    return {
+      success: true,
+      message: `Child user "${childData.email}" has been removed from the family.`,
+    };
+  } catch (error) {
+    throw new Error(error.message);
   }
 };

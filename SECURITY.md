@@ -43,6 +43,8 @@ Key protections in your rules:
 - ✅ Family-based access control
 - ✅ Role-based permissions (parent/child)
 - ✅ User can only access their own family data
+- ✅ **Parents can securely delete child users (soft-delete strategy)**
+  - See [CHILD_DELETION_FEATURE.md](CHILD_DELETION_FEATURE.md) for details
 
 ### 5. **Additional Best Practices**
 

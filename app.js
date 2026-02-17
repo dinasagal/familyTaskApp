@@ -8,6 +8,7 @@ import {
   getCurrentUserProfile,
   loadFamilyMembers,
   setupAuthListener,
+  deleteChildUser,
 } from "./auth.js";
 
 import {
@@ -339,8 +340,11 @@ const renderFamilyMembers = async () => {
     memberMap = new Map(members.map((member) => [member.uid, member]));
     populateAssigneeOptions();
     populateCalendarUserSelect();
-    if (!selectedCalendarUserUid && members.length > 0) {
-      selectedCalendarUserUid = members[0].uid;
+    
+    // Set default calendar user to first non-deleted member
+    const activeMember = members.find((m) => !m.isDeleted);
+    if (!selectedCalendarUserUid && activeMember) {
+      selectedCalendarUserUid = activeMember.uid;
       calendarUserSelect.value = selectedCalendarUserUid;
     }
     
@@ -353,7 +357,46 @@ const renderFamilyMembers = async () => {
     
     members.forEach((member) => {
       const listItem = document.createElement("li");
-      listItem.textContent = `${member.email} (${member.role || "—"})`;
+      const isDeleted = member.isDeleted || false;
+      
+      // Display member info
+      const memberName = member.name && member.name !== "—" ? member.name : member.email;
+      const displayText = isDeleted 
+        ? `${memberName} (${member.role || "—"}) [Deleted]`
+        : `${memberName} (${member.role || "—"})`;
+      
+      const textSpan = document.createElement("span");
+      textSpan.textContent = displayText;
+      textSpan.className = isDeleted ? "deleted-member" : "";
+      listItem.appendChild(textSpan);
+      
+      // Add delete button for parents managing children (not deleted)
+      if (currentUserRole === "parent" && member.role === "child" && !isDeleted && member.uid !== currentUser.uid) {
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "member-delete-btn";
+        deleteBtn.textContent = "Delete";
+        deleteBtn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          
+          // Confirmation dialog
+          const childDisplayName = member.name && member.name !== "—" ? member.name : member.email;
+          if (!confirm(`Are you sure you want to remove "${childDisplayName}" from the family?\n\nTheir tasks, events, and messages will remain but will be marked as belonging to a deleted user.`)) {
+            return;
+          }
+          
+          try {
+            setStatus("Removing child user…");
+            await deleteChildUser(member.uid);
+            await renderFamilyMembers();
+            setStatus(`"${childDisplayName}" has been removed from the family.`);
+          } catch (error) {
+            showError(error.message);
+            setStatus("Failed to remove child user.");
+          }
+        });
+        listItem.appendChild(deleteBtn);
+      }
+      
       familyMembersList.appendChild(listItem);
     });
     
@@ -377,6 +420,10 @@ const populateAssigneeOptions = () => {
   if (currentUserRole === "parent") {
     assignedUserWrapper.classList.remove("hidden");
     familyMembers.forEach((member) => {
+      // Exclude deleted members from assignee options
+      if (member.isDeleted) {
+        return;
+      }
       const option = document.createElement("option");
       option.value = member.uid;
       option.textContent = member.name ? `${member.name} (${member.email})` : member.email;
@@ -409,6 +456,9 @@ const getAssigneeName = (uid) => {
   const member = memberMap.get(uid);
   if (!member) {
     return "Unknown";
+  }
+  if (member.isDeleted) {
+    return "[Deleted User]";
   }
   return member.name ? member.name : member.email;
 };
@@ -641,6 +691,10 @@ const deleteTask = async (taskId) => {
 const populateCalendarUserSelect = () => {
   calendarUserSelect.innerHTML = "";
   familyMembers.forEach((member) => {
+    // Exclude deleted members from calendar selection
+    if (member.isDeleted) {
+      return;
+    }
     const option = document.createElement("option");
     option.value = member.uid;
     option.textContent = member.name ? member.name : member.email;
@@ -651,6 +705,10 @@ const populateCalendarUserSelect = () => {
 const populateEventUserSelect = () => {
   eventUserSelect.innerHTML = "";
   familyMembers.forEach((member) => {
+    // Exclude deleted members from event user selection
+    if (member.isDeleted) {
+      return;
+    }
     const option = document.createElement("option");
     option.value = member.uid;
     option.textContent = member.name ? member.name : member.email;
@@ -962,7 +1020,13 @@ const renderMessages = (messages) => {
     if (message.authorUid === currentUser.uid) {
       author.classList.add("own");
     }
-    author.textContent = message.authorName || message.authorUid;
+    // Check if the author has been deleted
+    const authorMember = memberMap.get(message.authorUid);
+    if (authorMember && authorMember.isDeleted) {
+      author.textContent = "[Deleted User]";
+    } else {
+      author.textContent = message.authorName || message.authorUid;
+    }
     header.appendChild(author);
 
     const time = document.createElement("span");

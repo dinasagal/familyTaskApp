@@ -21,6 +21,16 @@ service cloud.firestore {
                      (request.auth.uid == userId || 
                       (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "parent" &&
                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId == resource.data.familyId));
+      
+      // Parents can soft-delete child users from their family (cannot delete self)
+      allow update: if request.auth != null &&
+                       request.auth.uid != userId &&
+                       exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "parent" &&
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId == resource.data.familyId &&
+                       resource.data.role == "child" &&
+                       request.resource.data.isDeleted == true &&
+                       request.resource.data.deletedAt != null;
     }
 
     // Families collection
