@@ -35,6 +35,7 @@ export let currentFamilyId = null;
 let familyMembers = [];
 let memberMap = new Map();
 let archiveVisible = false;
+let activeSection = "auth";
 
 // Calendar module state
 let currentMonth = new Date().getMonth();
@@ -219,6 +220,8 @@ const showSection = (sectionName) => {
     }
   });
 
+  activeSection = sectionName;
+
   // Close sidebar on mobile after navigation
   if (window.innerWidth <= 768) {
     closeSidebar();
@@ -275,8 +278,15 @@ const setLoggedInUI = async (userData) => {
       populateAssigneeOptions();
     }
 
-    // Show default section (Tasks)
-    showSection("tasks");
+    // Preserve current section across auth refreshes (e.g., add child flow)
+    const sectionToShow =
+      activeSection && activeSection !== "auth" ? activeSection : "tasks";
+
+    if (sectionToShow === "settings" && userData.role !== "parent") {
+      return;
+    }
+
+    showSection(sectionToShow);
   } else {
     // User has no family - show create family form in auth section
     createFamilySection.classList.remove("hidden");
@@ -306,6 +316,7 @@ const setLoggedOutUI = () => {
   setAuthView("login");
   
   // Show auth section
+  activeSection = "auth";
   authSection.classList.remove("hidden");
   tasksSection.classList.add("hidden");
   calendarSection.classList.add("hidden");
