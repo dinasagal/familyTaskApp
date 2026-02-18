@@ -66,6 +66,7 @@ const familySettingsSection = document.getElementById("family-settings-section")
 const addChildForm = document.getElementById("add-child-form");
 const familyMembersSection = document.getElementById("family-members-section");
 const familyMembersList = document.getElementById("family-members-list");
+const settingsFamilyName = document.getElementById("settings-family-name");
 
 // Sidebar elements
 const hamburgerBtn = document.getElementById("hamburger-btn");
@@ -250,6 +251,7 @@ const setLoggedInUI = async (userData) => {
   if (userData?.familyId) {
     // User has a family
     familyName.textContent = userData.familyName || "—";
+    settingsFamilyName.textContent = userData.familyName || "—";
     familyId.textContent = userData.familyId;
     userRole.textContent = userData.role || "—";
     familyPanel.classList.remove("hidden");
@@ -309,6 +311,7 @@ const setLoggedOutUI = () => {
   userPanel.classList.add("hidden");
   createFamilySection.classList.add("hidden");
   familyPanel.classList.add("hidden");
+  settingsFamilyName.textContent = "—";
   sidebar.classList.add("hidden");
   hamburgerBtn.classList.add("hidden");
   navSettings.classList.add("hidden");
@@ -347,6 +350,7 @@ const setLoggedOutUI = () => {
 const renderFamilyMembers = async () => {
   try {
     const members = await loadFamilyMembers();
+    settingsFamilyName.textContent = familyName.textContent || "—";
     familyMembers = members;
     memberMap = new Map(members.map((member) => [member.uid, member]));
     populateAssigneeOptions();
@@ -1160,6 +1164,7 @@ const handleCreateFamily = async (event) => {
     // Update UI
     const profile = getCurrentUserProfile();
     familyName.textContent = fName;
+    settingsFamilyName.textContent = fName;
     familyId.textContent = newFamilyId;
     userRole.textContent = "parent";
     createFamilySection.classList.add("hidden");

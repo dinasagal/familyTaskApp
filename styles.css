@@ -372,6 +372,15 @@ button.ghost:hover {
   margin: 16px 0 0;
 }
 
+#family-members-section > p.muted {
+  margin: 0 0 10px;
+}
+
+#settings-family-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .family-list li {
   padding: 12px;
   background: #fef9e7;
